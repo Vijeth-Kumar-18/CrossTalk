@@ -15,6 +15,7 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setUser: (user: User | null) => void;
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   signup: async () => ({ success: false }),
   logout: () => {},
   setUser: () => {},
+  updateUser: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -106,8 +108,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUser = (updated: User) => {
+    setUser(updated);
+    try {
+      localStorage.setItem('crosstalk_user', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, setUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, setUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

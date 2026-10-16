@@ -208,6 +208,90 @@ export async function verifyUserCredentials(
   return safeUser;
 }
 
+export async function updateUserProfile(data: {
+  userId: string;
+  fullName?: string;
+  preferredLanguage?: string;
+}): Promise<User | null> {
+  const sql = getNeonClient();
+  if (sql) {
+    try {
+      await ensureSchema(sql);
+      const current = await sql`SELECT id, email, full_name, preferred_language, created_at FROM users WHERE id = ${data.userId} LIMIT 1`;
+      if (current.length === 0) return null;
+
+      const newName = data.fullName ? data.fullName.trim() : current[0].full_name;
+      const newLang = data.preferredLanguage ? data.preferredLanguage.trim() : current[0].preferred_language;
+
+      const rows = await sql`
+        UPDATE users
+        SET full_name = ${newName}, preferred_language = ${newLang}
+        WHERE id = ${data.userId}
+        RETURNING id, email, full_name, preferred_language, created_at
+      `;
+      if (rows.length > 0) {
+        const u = rows[0];
+        const updated: User = {
+          id: String(u.id),
+          email: String(u.email),
+          full_name: String(u.full_name),
+          preferred_language: String(u.preferred_language),
+          created_at: new Date(u.created_at).toISOString(),
+        };
+        const memIdx = memoryUsers.findIndex((m) => m.id === data.userId);
+        if (memIdx !== -1) {
+          memoryUsers[memIdx].full_name = updated.full_name;
+          memoryUsers[memIdx].preferred_language = updated.preferred_language;
+        }
+        return updated;
+      }
+    } catch (err) {
+      console.warn('[CrossTalk DB] Neon updateUserProfile error:', err);
+    }
+  }
+
+  const memUser = memoryUsers.find((u) => u.id === data.userId);
+  if (!memUser) return null;
+  if (data.fullName) memUser.full_name = data.fullName.trim();
+  if (data.preferredLanguage) memUser.preferred_language = data.preferredLanguage.trim();
+  const { password_hash, ...safeUser } = memUser;
+  return safeUser;
+}
+
+export async function updateUserPassword(data: {
+  userId: string;
+  oldPassword: string;
+  newPassword: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const sql = getNeonClient();
+  if (sql) {
+    try {
+      await ensureSchema(sql);
+      const rows = await sql`SELECT id, password_hash FROM users WHERE id = ${data.userId} LIMIT 1`;
+      if (rows.length === 0) return { success: false, error: 'User not found in system.' };
+
+      const currentHash = rows[0].password_hash;
+      if (!verifyPassword(data.oldPassword, currentHash)) {
+        return { success: false, error: 'Current password does not match records.' };
+      }
+
+      const newHash = hashPassword(data.newPassword);
+      await sql`UPDATE users SET password_hash = ${newHash} WHERE id = ${data.userId}`;
+      return { success: true };
+    } catch (err) {
+      console.warn('[CrossTalk DB] Neon updateUserPassword error:', err);
+    }
+  }
+
+  const memUser = memoryUsers.find((u) => u.id === data.userId);
+  if (!memUser) return { success: false, error: 'User not found.' };
+  if (!verifyPassword(data.oldPassword, memUser.password_hash)) {
+    return { success: false, error: 'Current password does not match records.' };
+  }
+  memUser.password_hash = hashPassword(data.newPassword);
+  return { success: true };
+}
+
 // ================= DEBATE ROOM QUERIES =================
 
 export async function createDebateRoom(data: {

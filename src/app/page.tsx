@@ -215,8 +215,21 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white py-6 px-4 sm:px-6 text-center text-xs text-slate-500">
-        <p>© 2026 {APP_CONFIG.NAME}. Enterprise Peer-to-Peer Cross-Language Dispute Architecture.</p>
+      <footer className="mt-auto border-t border-slate-200 bg-white py-8 px-4 sm:px-6 text-center text-xs text-slate-500">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p>© 2026 {APP_CONFIG.NAME}. Enterprise Peer-to-Peer Cross-Language Dispute Architecture.</p>
+          <div className="flex items-center gap-6 font-medium text-slate-600">
+            <Link href="/about" className="hover:text-slate-900 transition-colors">
+              About Us & Protocol
+            </Link>
+            <Link href="/dashboard" className="hover:text-slate-900 transition-colors">
+              Dispute Rooms
+            </Link>
+            <Link href="/signup" className="hover:text-slate-900 transition-colors">
+              Sign Up
+            </Link>
+          </div>
+        </div>
       </footer>
     </div>
   );

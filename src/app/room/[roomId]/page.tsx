@@ -74,6 +74,12 @@ export default function DisputeRoomPage({
   const recognitionRef = useRef<any>(null);
   const playedTurnsSetRef = useRef<Set<string>>(new Set());
 
+  // Speech Deduplication & Dispatch Guard Refs
+  const lastFinalIndexRef = useRef<number>(-1);
+  const lastDispatchedTextRef = useRef<string>('');
+  const lastDispatchTimeRef = useRef<number>(0);
+  const isDispatchingRef = useRef<boolean>(false);
+
   // Determine user role and languages
   const isParticipantA = room?.participant_a_id === user?.id;
   const isParticipantB = room?.participant_b_id === user?.id;
@@ -222,12 +228,29 @@ export default function DisputeRoomPage({
   }, [fetchRoomData, fetchRoomTurns]);
 
   /**
-   * Dispatch turn to backend
+   * Dispatch turn to backend with strict deduplication
    */
   const dispatchTurn = async (rawText: string, didInterrupt: boolean) => {
-    if (!rawText.trim() || !user || !room) return;
+    const cleanText = rawText.trim();
+    if (!cleanText || !user || !room) return;
 
+    // Deduplication guard: discard identical utterance dispatched within 3.5 seconds
+    const now = Date.now();
+    if (cleanText === lastDispatchedTextRef.current && now - lastDispatchTimeRef.current < 3500) {
+      console.warn('[CrossTalk Speech] Deduplicated identical turn emission:', cleanText);
+      return;
+    }
+
+    if (isDispatchingRef.current) {
+      console.warn('[CrossTalk Speech] Turn submission in-flight. Skipping overlapping call:', cleanText);
+      return;
+    }
+
+    isDispatchingRef.current = true;
+    lastDispatchedTextRef.current = cleanText;
+    lastDispatchTimeRef.current = now;
     setIsSubmitting(true);
+
     try {
       const res = await fetch('/api/translate', {
         method: 'POST',
@@ -235,7 +258,7 @@ export default function DisputeRoomPage({
         body: JSON.stringify({
           roomId: room.id,
           speakerId: user.id,
-          text: rawText.trim(),
+          text: cleanText,
           fromLang: yourLang,
           toLang: opponentLang,
           didInterrupt,
@@ -243,18 +266,22 @@ export default function DisputeRoomPage({
       });
       const data = await res.json();
       if (data.success && data.data?.turn) {
-        setTurns((prev) => [...prev, data.data.turn]);
+        setTurns((prev) => {
+          if (prev.some((t) => t.id === data.data.turn.id)) return prev;
+          return [...prev, data.data.turn];
+        });
         playedTurnsSetRef.current.add(data.data.turn.id);
       }
     } catch (err) {
       console.error('Dispatch turn error:', err);
     } finally {
       setIsSubmitting(false);
+      isDispatchingRef.current = false;
     }
   };
 
   /**
-   * Speech Recognition handlers
+   * Speech Recognition handlers with strict resultIndex tracking
    */
   const startRecording = () => {
     if (typeof window === 'undefined') return;
@@ -269,6 +296,12 @@ export default function DisputeRoomPage({
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
+
+    // Reset deduplication guards for fresh utterance session
+    lastFinalIndexRef.current = -1;
+    lastDispatchedTextRef.current = '';
+    lastDispatchTimeRef.current = 0;
+    isDispatchingRef.current = false;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -289,21 +322,29 @@ export default function DisputeRoomPage({
       }
 
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const text = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          final += text;
+        const result = event.results[i];
+        const text = result[0]?.transcript?.trim() || '';
+        if (result.isFinal) {
+          // Strictly avoid processing the same finalized speech index more than once
+          if (i > lastFinalIndexRef.current) {
+            lastFinalIndexRef.current = i;
+            final += (final ? ' ' : '') + text;
+          }
         } else {
-          interim += text;
+          interim += (interim ? ' ' : '') + text;
         }
       }
 
-      setInterimSpeech(interim || final);
+      if (interim) {
+        setInterimSpeech(interim);
+      }
 
-      if (final.trim()) {
+      const cleanFinal = final.trim();
+      if (cleanFinal) {
         const didInterrupt = bargeInTriggeredForThisUtterance;
         bargeInTriggeredForThisUtterance = false;
-        dispatchTurn(final.trim(), didInterrupt);
         setInterimSpeech('');
+        dispatchTurn(cleanFinal, didInterrupt);
       }
     };
 

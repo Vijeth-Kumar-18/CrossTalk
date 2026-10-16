@@ -133,11 +133,16 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-xs text-xs text-slate-700">
-            <Globe className="w-4 h-4 text-slate-500" />
+          <Link
+            href="/profile"
+            title="Click to change your debate language"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 shadow-xs text-xs text-slate-700 transition-colors group cursor-pointer"
+          >
+            <Globe className="w-4 h-4 text-slate-500 group-hover:text-blue-600 transition-colors" />
             <span>Native Language:</span>
             <strong className="text-slate-900">{userLangName}</strong>
-          </div>
+            <span className="text-[11px] text-blue-600 font-semibold underline ml-1">Change</span>
+          </Link>
         </div>
 
         {/* Action Cards: Create vs Join */}
