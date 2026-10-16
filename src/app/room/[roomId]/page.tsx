@@ -10,7 +10,6 @@ import {
   UI_STRINGS,
   AUDIO_CONFIG,
   SUPPORTED_LANGUAGES,
-  DEMO_USERS,
 } from '@/constants/appConstants';
 import {
   Mic,
@@ -38,9 +37,16 @@ export default function DisputeRoomPage({
   params: Promise<{ roomId: string }>;
 }) {
   const router = useRouter();
-  const { user, demoLogin } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const resolvedParams = use(params);
   const roomId = resolvedParams.roomId;
+
+  // Protect route
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push(`/login?redirect=${encodeURIComponent(roomId)}`);
+    }
+  }, [user, authLoading, router, roomId]);
 
   const [room, setRoom] = useState<DebateRoom | null>(null);
   const [turns, setTurns] = useState<DebateTurn[]>([]);
@@ -328,16 +334,6 @@ export default function DisputeRoomPage({
     setTypedMessage('');
   };
 
-  const handleSimulateSpeech = () => {
-    const isGerman = yourLang.startsWith('de');
-    const sampleText = isGerman
-      ? 'Ich verstehe Ihren Standpunkt, aber das Budget wurde im Vorfeld bereits fest vereinbart!'
-      : 'Hold on! You cannot unilaterally revise terms without our written approval.';
-
-    const caused = triggerBargeInCutoff();
-    dispatchTurn(sampleText, caused);
-  };
-
   const handleCopyCode = () => {
     if (room?.room_code) {
       navigator.clipboard.writeText(room.room_code);
@@ -345,8 +341,6 @@ export default function DisputeRoomPage({
       setTimeout(() => setCopiedCode(false), 2000);
     }
   };
-
-  const otherDemoUser = user?.id === DEMO_USERS[0].id ? DEMO_USERS[1] : DEMO_USERS[0];
 
   return (
     <div className="flex-1 flex flex-col bg-[#f8fafc]">
@@ -527,15 +521,6 @@ export default function DisputeRoomPage({
                     </>
                   )}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={handleSimulateSpeech}
-                  title="Inject test argumentative turn in your language"
-                  className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
-                >
-                  {UI_STRINGS.ROOM.SIMULATE_ARGUMENT}
-                </button>
               </div>
             </div>
           </div>
@@ -619,15 +604,15 @@ export default function DisputeRoomPage({
               </div>
             </div>
 
-            {/* Quick multi-tab testing banner */}
+            {/* Opponent Connection Footer */}
             <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Want to test as the opponent?</span>
-              <button
-                onClick={() => demoLogin(otherDemoUser.id)}
-                className="font-medium text-slate-900 hover:underline cursor-pointer"
-              >
-                Log in as {otherDemoUser.fullName.split(' ')[0]}
-              </button>
+              <span className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${isOpponentConnected ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                <span>{isOpponentConnected ? 'Encrypted Speech Bridge Active' : 'Waiting for Counterpart to Connect'}</span>
+              </span>
+              <span className="text-[11px] font-mono text-slate-400">
+                P2P Session
+              </span>
             </div>
           </div>
         </div>

@@ -29,25 +29,6 @@ export const AUDIO_CONFIG = {
   INTERRUPT_CUTOFF_DELAY_MS: 0,
 } as const;
 
-export const DEMO_USERS = [
-  {
-    id: 'a0000000-0000-0000-0000-000000000001',
-    email: 'marco@example.com',
-    password: 'password123',
-    fullName: 'Marco Rossi',
-    preferredLanguage: 'en-US',
-    role: 'Product Lead / Client',
-  },
-  {
-    id: 'b0000000-0000-0000-0000-000000000002',
-    email: 'rohan@example.com',
-    password: 'password123',
-    fullName: 'Rohan Mehta',
-    preferredLanguage: 'de-DE',
-    role: 'Engineering Contractor / Vendor',
-  },
-] as const;
-
 export const PRESET_TOPICS = [
   'Commercial contract scope creep and delayed milestone payment release',
   'Startup equity split renegotiation between founding team members',
@@ -80,16 +61,16 @@ export const UI_STRINGS = {
   },
   AUTH: {
     LOGIN_TITLE: 'Sign in to CrossTalk',
-    LOGIN_SUBTITLE: 'Enter your credentials to access your dispute rooms.',
+    LOGIN_SUBTITLE: 'Enter your verified account email and password.',
     SIGNUP_TITLE: 'Create your CrossTalk account',
-    SIGNUP_SUBTITLE: 'Pick your native language to participate in debates.',
+    SIGNUP_SUBTITLE: 'Pick your native language and set a secure password.',
     EMAIL_LABEL: 'Email Address',
-    PASSWORD_LABEL: 'Password',
+    PASSWORD_LABEL: 'Password (min. 8 characters)',
+    CONFIRM_PASSWORD_LABEL: 'Confirm Password',
     NAME_LABEL: 'Full Name',
     LANG_LABEL: 'Native Spoken Language',
     LOGIN_BTN: 'Sign In',
     SIGNUP_BTN: 'Create Account',
-    DEMO_ACCOUNT_LABEL: 'Or quick-sign in with a demo participant account:',
   },
   DASHBOARD: {
     WELCOME: 'Welcome back',
@@ -105,8 +86,8 @@ export const UI_STRINGS = {
     TOPIC_PLACEHOLDER: 'What is the core disagreement?',
     SUBMIT_CREATE_BTN: 'Generate Room & Code',
     SUBMIT_JOIN_BTN: 'Enter Debate Room',
-    RECENT_DEBATES: 'Recent Debate Rooms',
-    NO_DEBATES: 'No debate rooms recorded yet. Create or join one above.',
+    RECENT_DEBATES: 'Your Debate Rooms',
+    NO_DEBATES: 'No debate rooms created or joined yet. Create your first room above.',
   },
   ROOM: {
     WAITING_STATUS: 'Waiting for Opponent',
@@ -124,7 +105,6 @@ export const UI_STRINGS = {
     SEND_BTN: 'Send',
     INTERRUPT_ALERT: 'Interruption detected — opponent translation audio silenced',
     TRANSCRIPT_TITLE: 'Live Dispute Transcript',
-    SIMULATE_ARGUMENT: 'Test Argument',
     AUDIO_MUTED: 'Audio Muted',
     AUDIO_ACTIVE: 'Audio Active',
     CONCESSION_BADGE: 'Conceding Point',

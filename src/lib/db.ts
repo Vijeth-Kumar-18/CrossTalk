@@ -1,72 +1,17 @@
 import { neon } from '@neondatabase/serverless';
 import { User, DebateRoom, DebateTurn } from '@/types/clashTypes';
-import { DEMO_USERS } from '@/constants/appConstants';
+import { hashPassword, verifyPassword } from '@/lib/auth';
+
+interface UserRecord extends User {
+  password_hash: string;
+}
 
 /**
- * In-memory fallback stores for immediate development/testing
+ * Clean in-memory fallback stores for local testing without hardcoded dummy users
  */
-let memoryUsers: User[] = [
-  {
-    id: DEMO_USERS[0].id,
-    email: DEMO_USERS[0].email,
-    full_name: DEMO_USERS[0].fullName,
-    preferred_language: DEMO_USERS[0].preferredLanguage,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  },
-  {
-    id: DEMO_USERS[1].id,
-    email: DEMO_USERS[1].email,
-    full_name: DEMO_USERS[1].fullName,
-    preferred_language: DEMO_USERS[1].preferredLanguage,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  },
-];
-
-let memoryRooms: DebateRoom[] = [
-  {
-    id: 'c0000000-0000-0000-0000-000000000001',
-    room_code: 'DISPUT',
-    topic: 'Commercial contract scope expansion and milestone payment release',
-    created_by: DEMO_USERS[0].id,
-    participant_a_id: DEMO_USERS[0].id,
-    participant_b_id: DEMO_USERS[1].id,
-    participant_a_lang: 'en-US',
-    participant_b_lang: 'de-DE',
-    status: 'active',
-    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    participant_a: memoryUsers[0],
-    participant_b: memoryUsers[1],
-  },
-];
-
-let memoryTurns: DebateTurn[] = [
-  {
-    id: 'turn-seed-1',
-    room_id: 'c0000000-0000-0000-0000-000000000001',
-    speaker_id: DEMO_USERS[0].id,
-    speaker_name: DEMO_USERS[0].fullName,
-    original_text: 'You cannot unilaterally add $4,000 for deliverables clearly outlined in the initial statement of work.',
-    translated_text: 'Sie können nicht einseitig 4.000 $ für Leistungen hinzufügen, die klar in der ursprünglichen Leistungsbeschreibung definiert waren.',
-    detected_sentiment: 'heated',
-    heat_score: 7,
-    is_concession: false,
-    did_interrupt: false,
-    created_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-  },
-  {
-    id: 'turn-seed-2',
-    room_id: 'c0000000-0000-0000-0000-000000000001',
-    speaker_id: DEMO_USERS[1].id,
-    speaker_name: DEMO_USERS[1].fullName,
-    original_text: 'Das ist unbegründet! Sie haben drei zusätzliche Revisionsrunden verlangt, die nirgends im Vertrag standen.',
-    translated_text: 'That is completely unfounded! You demanded three additional revision rounds that were nowhere in the contract.',
-    detected_sentiment: 'escalating',
-    heat_score: 8,
-    is_concession: false,
-    did_interrupt: true,
-    created_at: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-  },
-];
+let memoryUsers: UserRecord[] = [];
+let memoryRooms: DebateRoom[] = [];
+let memoryTurns: DebateTurn[] = [];
 
 let schemaReady = false;
 
@@ -136,17 +81,24 @@ async function ensureSchema(sql: any) {
 
 // ================= USER QUERIES =================
 
-export async function getUserByEmail(email: string): Promise<User | null> {
+export async function getUserByEmail(email: string): Promise<UserRecord | null> {
+  const cleanEmail = email.trim().toLowerCase();
   const sql = getNeonClient();
   if (sql) {
     try {
       await ensureSchema(sql);
-      const rows = await sql`SELECT id, email, full_name, preferred_language, created_at FROM users WHERE email = ${email} LIMIT 1`;
+      const rows = await sql`
+        SELECT id, email, password_hash, full_name, preferred_language, created_at 
+        FROM users 
+        WHERE LOWER(email) = ${cleanEmail} 
+        LIMIT 1
+      `;
       if (rows.length > 0) {
         const u = rows[0];
         return {
           id: String(u.id),
           email: String(u.email),
+          password_hash: String(u.password_hash),
           full_name: String(u.full_name),
           preferred_language: String(u.preferred_language),
           created_at: new Date(u.created_at).toISOString(),
@@ -158,7 +110,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     }
   }
 
-  const found = memoryUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  const found = memoryUsers.find((u) => u.email.toLowerCase() === cleanEmail);
   return found || null;
 }
 
@@ -185,48 +137,75 @@ export async function getUserById(id: string): Promise<User | null> {
   }
 
   const found = memoryUsers.find((u) => u.id === id);
-  return found || null;
+  if (!found) return null;
+  const { password_hash, ...safeUser } = found;
+  return safeUser;
 }
 
 export async function createUser(data: {
   email: string;
-  password?: string;
+  password: string;
   fullName: string;
   preferredLanguage: string;
 }): Promise<User> {
+  const cleanEmail = data.email.trim().toLowerCase();
+  const hashedPassword = hashPassword(data.password);
   const sql = getNeonClient();
+
   if (sql) {
     try {
       await ensureSchema(sql);
       const rows = await sql`
         INSERT INTO users (email, password_hash, full_name, preferred_language)
-        VALUES (${data.email}, ${data.password || 'password123'}, ${data.fullName}, ${data.preferredLanguage})
+        VALUES (${cleanEmail}, ${hashedPassword}, ${data.fullName.trim()}, ${data.preferredLanguage})
         RETURNING id, email, full_name, preferred_language, created_at
       `;
       const u = rows[0];
-      const newUser: User = {
+      const newUser: UserRecord = {
         id: String(u.id),
         email: String(u.email),
+        password_hash: hashedPassword,
         full_name: String(u.full_name),
         preferred_language: String(u.preferred_language),
         created_at: new Date(u.created_at).toISOString(),
       };
       memoryUsers.push(newUser);
-      return newUser;
+      const { password_hash, ...safeUser } = newUser;
+      return safeUser;
     } catch (err) {
       console.warn('[CrossTalk DB] Neon createUser error:', err);
     }
   }
 
-  const newUser: User = {
-    id: `u-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-    email: data.email,
-    full_name: data.fullName,
+  const newUser: UserRecord = {
+    id: `u-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    email: cleanEmail,
+    password_hash: hashedPassword,
+    full_name: data.fullName.trim(),
     preferred_language: data.preferredLanguage,
     created_at: new Date().toISOString(),
   };
   memoryUsers.push(newUser);
-  return newUser;
+  const { password_hash, ...safeUser } = newUser;
+  return safeUser;
+}
+
+export async function verifyUserCredentials(
+  email: string,
+  plainPassword: string
+): Promise<User | null> {
+  const user = await getUserByEmail(email);
+  if (!user || !user.password_hash) {
+    return null;
+  }
+
+  const matches = verifyPassword(plainPassword, user.password_hash);
+  if (!matches) {
+    return null;
+  }
+
+  const { password_hash, ...safeUser } = user;
+  return safeUser;
 }
 
 // ================= DEBATE ROOM QUERIES =================
@@ -267,9 +246,9 @@ export async function createDebateRoom(data: {
     }
   }
 
-  const creator = memoryUsers.find((u) => u.id === data.createdBy);
+  const creator = await getUserById(data.createdBy);
   const newRoom: DebateRoom = {
-    id: `r-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    id: `r-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     room_code: roomCode,
     topic: data.topic,
     created_by: data.createdBy,
@@ -335,9 +314,17 @@ export async function getRoomById(id: string): Promise<DebateRoom | null> {
 
   const room = memoryRooms.find((r) => r.id === id);
   if (room) {
-    room.participant_a = memoryUsers.find((u) => u.id === room.participant_a_id) || room.participant_a;
+    const creator = memoryUsers.find((u) => u.id === room.participant_a_id);
+    if (creator) {
+      const { password_hash, ...safe } = creator;
+      room.participant_a = safe;
+    }
     if (room.participant_b_id) {
-      room.participant_b = memoryUsers.find((u) => u.id === room.participant_b_id) || room.participant_b;
+      const opp = memoryUsers.find((u) => u.id === room.participant_b_id);
+      if (opp) {
+        const { password_hash, ...safe } = opp;
+        room.participant_b = safe;
+      }
     }
   }
   return room || null;
@@ -376,7 +363,6 @@ export async function joinDebateRoom(data: {
   const room = await getRoomByCode(data.roomCode);
   if (!room) return null;
 
-  // If already in room as participant A
   if (room.participant_a_id === data.userId) {
     return room;
   }
@@ -401,7 +387,12 @@ export async function joinDebateRoom(data: {
   room.participant_b_id = data.userId;
   room.participant_b_lang = data.userLang;
   room.status = 'active';
-  room.participant_b = memoryUsers.find((u) => u.id === data.userId);
+
+  const user = memoryUsers.find((u) => u.id === data.userId);
+  if (user) {
+    const { password_hash, ...safe } = user;
+    room.participant_b = safe;
+  }
 
   return room;
 }

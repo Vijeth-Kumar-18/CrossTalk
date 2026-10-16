@@ -2,14 +2,17 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@/types/clashTypes';
-import { DEMO_USERS } from '@/constants/appConstants';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string) => Promise<boolean>;
-  demoLogin: (userId: string) => Promise<boolean>;
-  signup: (data: { email: string; fullName: string; preferredLanguage: string }) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (data: {
+    email: string;
+    password: string;
+    fullName: string;
+    preferredLanguage: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setUser: (user: User | null) => void;
 }
@@ -17,9 +20,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
-  login: async () => false,
-  demoLogin: async () => false,
-  signup: async () => false,
+  login: async () => ({ success: false }),
+  signup: async () => ({ success: false }),
   logout: () => {},
   setUser: () => {},
 });
@@ -29,68 +31,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check localStorage for persisted session
     try {
       const stored = localStorage.getItem('crosstalk_user');
       if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
-        // Default to Marco for immediate out-of-the-box experience
-        const defaultUser: User = {
-          id: DEMO_USERS[0].id,
-          email: DEMO_USERS[0].email,
-          full_name: DEMO_USERS[0].fullName,
-          preferred_language: DEMO_USERS[0].preferredLanguage,
-        };
-        setUser(defaultUser);
-        localStorage.setItem('crosstalk_user', JSON.stringify(defaultUser));
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.id && parsed.email) {
+          setUser(parsed);
+        }
       }
     } catch {
-      // Storage error
+      localStorage.removeItem('crosstalk_user');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const login = async (email: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ action: 'login', email, password }),
       });
       const data = await res.json();
       if (data.success && data.user) {
         setUser(data.user);
         localStorage.setItem('crosstalk_user', JSON.stringify(data.user));
-        return true;
+        return { success: true };
       }
+      return { success: false, error: data.error || 'Invalid credentials.' };
     } catch (err) {
       console.error('Login error:', err);
+      return { success: false, error: 'Connection failed. Please try again.' };
     }
-    return false;
   };
 
-  const demoLogin = async (userId: string): Promise<boolean> => {
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'demo', userId }),
-      });
-      const data = await res.json();
-      if (data.success && data.user) {
-        setUser(data.user);
-        localStorage.setItem('crosstalk_user', JSON.stringify(data.user));
-        return true;
-      }
-    } catch (err) {
-      console.error('Demo login error:', err);
-    }
-    return false;
-  };
-
-  const signup = async (data: { email: string; fullName: string; preferredLanguage: string }): Promise<boolean> => {
+  const signup = async (data: {
+    email: string;
+    password: string;
+    fullName: string;
+    preferredLanguage: string;
+  }): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
@@ -98,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({
           action: 'signup',
           email: data.email,
+          password: data.password,
           fullName: data.fullName,
           preferredLanguage: data.preferredLanguage,
         }),
@@ -106,12 +88,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (json.success && json.user) {
         setUser(json.user);
         localStorage.setItem('crosstalk_user', JSON.stringify(json.user));
-        return true;
+        return { success: true };
       }
+      return { success: false, error: json.error || 'Registration failed.' };
     } catch (err) {
       console.error('Signup error:', err);
+      return { success: false, error: 'Connection failed. Please try again.' };
     }
-    return false;
   };
 
   const logout = () => {
@@ -124,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, demoLogin, signup, logout, setUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

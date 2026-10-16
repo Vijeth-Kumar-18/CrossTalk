@@ -20,9 +20,16 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [rooms, setRooms] = useState<DebateRoom[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
+
+  // Redirect to login if unauthenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
 
   // Create room modal/form state
   const [showCreateModal, setShowCreateModal] = useState(false);

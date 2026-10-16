@@ -4,17 +4,17 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { APP_CONFIG, UI_STRINGS, PRESET_TOPICS } from '@/constants/appConstants';
+import { APP_CONFIG, UI_STRINGS } from '@/constants/appConstants';
 import {
-  MessageSquare,
   ArrowRight,
   Shield,
   VolumeX,
-  Sparkles,
   Zap,
   Globe,
+  Radio,
   Users,
-  CheckCircle2,
+  Mic,
+  MessageSquare,
   Lock,
 } from 'lucide-react';
 
@@ -28,14 +28,19 @@ export default function LandingPage() {
     e.preventDefault();
     if (!roomCode.trim()) return;
 
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(roomCode.trim().toUpperCase())}`);
+      return;
+    }
+
     try {
       const res = await fetch('/api/rooms/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomCode: roomCode.trim().toUpperCase(),
-          userId: user?.id || 'guest',
-          userLang: user?.preferred_language || 'en-US',
+          userId: user.id,
+          userLang: user.preferred_language || 'en-US',
         }),
       });
       const data = await res.json();
@@ -73,10 +78,10 @@ export default function LandingPage() {
           {/* Action Row */}
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/dashboard"
+              href={user ? '/dashboard' : '/signup'}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white font-medium text-sm hover:bg-slate-800 transition-all shadow-md active:scale-98"
             >
-              <span>{UI_STRINGS.LANDING.CTA_START}</span>
+              <span>{user ? 'Go to Dashboard' : UI_STRINGS.LANDING.CTA_START}</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
 
@@ -95,7 +100,7 @@ export default function LandingPage() {
               />
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-medium transition-colors"
+                className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-medium transition-colors cursor-pointer"
               >
                 Join Room
               </button>
@@ -108,58 +113,50 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Interactive Demonstration Preview Card */}
+      {/* Product Architecture Visual Explainer */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto w-full">
         <div className="enterprise-card p-6 sm:p-8 bg-white border border-slate-200">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-slate-100">
-            <div>
-              <span className="text-[11px] font-mono font-semibold uppercase text-slate-400">
-                Live Dispute Simulation
-              </span>
-              <h3 className="text-base font-bold text-slate-900">
-                {PRESET_TOPICS[0]}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Barge-In Active
-              </span>
-            </div>
+          <div className="text-center max-w-xl mx-auto mb-8">
+            <span className="text-[11px] font-mono font-semibold uppercase text-slate-400 tracking-wider">
+              System Architecture
+            </span>
+            <h2 className="text-xl font-bold text-slate-900 mt-1">
+              How Peer-to-Peer Dispute Resolution Works
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Both parties join from their own devices and speak in their native languages with near-zero latency.
+            </p>
           </div>
 
-          {/* Sample Exchange Preview */}
-          <div className="py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Participant 1 card preview */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-slate-800">
-                  Marco Rossi (English - US)
-                </span>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 font-medium">
-                  Standing firm
-                </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center mx-auto text-xs font-bold">
+                1
               </div>
-              <p className="text-xs text-slate-600 italic">
-                &ldquo;You cannot unilaterally add $4,000 for deliverables clearly outlined in the initial statement of work.&rdquo;
+              <h3 className="text-sm font-bold text-slate-900">Direct Speech Capture</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Stream spoken thoughts word-by-word via Web Speech API in your native dialect.
               </p>
             </div>
 
-            {/* Participant 2 card preview with translation */}
-            <div className="p-4 rounded-xl bg-slate-900 text-white space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-slate-200">
-                  Rohan Mehta (German - DE)
-                </span>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
-                  Pushing back
-                </span>
+            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center mx-auto text-xs font-bold">
+                2
               </div>
-              <p className="text-xs text-slate-300">
-                &ldquo;Das ist unbegründet! Sie haben drei zusätzliche Revisionsrunden verlangt, die nirgends im Vertrag standen.&rdquo;
+              <h3 className="text-sm font-bold text-slate-900">Acoustic Ducking</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                When either participant speaks, the opponent&apos;s audio output silences immediately for natural human dialogue.
               </p>
-              <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-                <strong>Translated in English:</strong> &ldquo;That is completely unfounded! You demanded three additional revision rounds that were nowhere in the contract.&rdquo;
+            </div>
+
+            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center mx-auto text-xs font-bold">
+                3
               </div>
+              <h3 className="text-sm font-bold text-slate-900">Resolution Audit</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Persistent audit registry logs each point, heat score, and concession in Neon PostgreSQL.
+              </p>
             </div>
           </div>
         </div>
@@ -178,7 +175,6 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
               <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white">
                 <VolumeX className="w-5 h-5" />
@@ -191,7 +187,6 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Feature 2 */}
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
               <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white">
                 <Zap className="w-5 h-5" />
@@ -204,7 +199,6 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Feature 3 */}
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
               <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white">
                 <Shield className="w-5 h-5" />
