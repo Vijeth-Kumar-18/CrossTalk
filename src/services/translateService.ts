@@ -1,15 +1,15 @@
-import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { StanceType, TranslateResponse } from '@/types/clashTypes';
 
-function getGroqClient(): Groq | null {
-  const apiKey = process.env.GROQ_API_KEY;
+function getGeminiClient(): GoogleGenerativeAI | null {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey || apiKey.includes('example') || apiKey.trim() === '') {
     return null;
   }
   try {
-    return new Groq({ apiKey });
+    return new GoogleGenerativeAI(apiKey.trim());
   } catch (err) {
-    console.warn('[CrossTalk Service] Groq init warning:', err);
+    console.warn('[CrossTalk Service] Google Gemini init warning:', err);
     return null;
   }
 }
@@ -149,18 +149,28 @@ export async function processDisputeTurn(params: {
   toLang: string;
   didInterrupt?: boolean;
 }): Promise<TranslateResponse> {
-  const groq = getGroqClient();
+  const gemini = getGeminiClient();
 
-  if (groq) {
+  if (gemini) {
     try {
+      const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+      const model = gemini.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+          maxOutputTokens: 500,
+        },
+      });
+
       const prompt = `
-You are the real-time dispute translator for CrossTalk.
-Two people are having a direct, contentious debate in different languages.
+You are the real-time dispute translator for CrossTalk, powered by Google Gemini Flash.
+Two individuals are engaged in a direct, contentious debate in different languages.
 
 TRANSLATE from ${params.fromLang} to ${params.toLang}.
 RULES:
-1. Preserve natural emotion, urgency, firmness, and colloquial slang.
-2. DO NOT sanitize or make it polite corporate speak.
+1. Preserve natural emotion, urgency, firmness, visceral tone, and colloquial argumentative expressions.
+2. DO NOT sanitize or turn it into polite corporate speak. Keep the argumentative friction and raw intent intact.
 3. Detect speaker stance: "Standing Firm" | "Pushing Back" | "Defending Position" | "Considering Point" | "Conceding"
 4. Detect if this is a concession (yielding ground, agreeing to a point): true/false
 5. Assign heatScore: 1 to 10 integer.
@@ -170,7 +180,7 @@ DID INTERRUPT OPPONENT: ${params.didInterrupt ? 'YES' : 'NO'}
 
 RETURN STRICT JSON ONLY:
 {
-  "translatedText": "...",
+  "translatedText": "translated text in target language",
   "sentiment": "heated" | "firm" | "defensive" | "conceding",
   "heatScore": 7,
   "isConcession": false,
@@ -178,15 +188,8 @@ RETURN STRICT JSON ONLY:
 }
 `;
 
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.2,
-        max_tokens: 400,
-      });
-
-      const raw = completion.choices[0]?.message?.content;
+      const response = await model.generateContent(prompt);
+      const raw = response.response.text();
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
@@ -198,7 +201,7 @@ RETURN STRICT JSON ONLY:
         };
       }
     } catch (err) {
-      console.warn('[CrossTalk Service] Groq inference error, using linguistic engine:', err);
+      console.warn('[CrossTalk Service] Google Gemini Flash inference error, using linguistic engine:', err);
     }
   }
 
